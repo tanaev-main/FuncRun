@@ -7,23 +7,11 @@ import sys
 import json
 
 
-function_name = "calculate"
-function_args = [5]
+request = json.loads(sys.stdin.read())
 
-code_text = '''
-import math
-
-x = 10
-
-def helper(a):
-    return a + math.sqrt(x)
-
-def square(a):
-    return helper(a) * a
-
-def calculate(b):
-    return square(b)'''
-
+code_text = request["code"]
+function_name = request["function"]
+function_args = request["args"]
 
 def collect_dependencies(function_name, visited, all_dependencies):
     if function_name in visited:
