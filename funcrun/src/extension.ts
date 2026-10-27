@@ -30,6 +30,57 @@ function GetArguments(file_text: string, function_name: string): string[] {
     return [];
 }
 
+function RunPython(
+    context: vscode.ExtensionContext,
+    text: string,
+    selected: string,
+    values: unknown[]
+) {
+    const analyzerPath = path.join(
+        context.extensionPath,
+        'python',
+        'analyze.py'
+    );
+
+    const python = spawn('python3', [analyzerPath]);
+
+    python.stdin.write(JSON.stringify({
+        code: text,
+        function: selected,
+        args: values
+    }));
+
+    python.stdin.end();
+
+    let output = '';
+    let errorOutput = '';
+
+    python.stdout.on('data', data => {
+        output += data.toString();
+    });
+
+    python.stderr.on('data', data => {
+        errorOutput += data.toString();
+    });
+
+    python.on('error', error => {
+        vscode.window.showErrorMessage(
+            `Не удалось запустить Python: ${error.message}`
+        );
+    });
+
+    python.on('close', code => {
+        if (code === 0) {
+            vscode.window.showInformationMessage(
+                `Результат: ${output.trim()}`
+            );
+        } else {
+            vscode.window.showErrorMessage(
+                `Ошибка Python: ${errorOutput.trim() || output.trim()}`
+            );
+        }
+    });
+}
 
 export function activate(context: vscode.ExtensionContext) {
 
@@ -82,62 +133,112 @@ export function activate(context: vscode.ExtensionContext) {
                     );
 
                     const args = GetArguments(text, selected);
-                    const values: string[] = [];
 
-                    for (const i of args) {
-                        const value = await vscode.window.showInputBox({
-                            prompt: `введите аргумент ${i}`
-                        });
-
-                        if (value === undefined) {
-                            return;
+                    const panel = vscode.window.createWebviewPanel(
+                        'funcrun',
+                        'FuncRun',
+                        vscode.ViewColumn.Beside,
+                        {
+                            enableScripts: true
                         }
-
-                        values.push(value);
-                    }
-
-                    vscode.window.showInformationMessage(values.join(", "));
-
-                    const analyzerPath = path.join(
-                        context.extensionPath,
-                        'python',
-                        'analyze.py'
                     );
 
-                    const python = spawn('python3', [analyzerPath]);
+                    panel.webview.html = `
+                        <!DOCTYPE html>
+                        <html lang="en">
+                        <head>
+                            <meta charset="UTF-8">
+                            <style>
+                                body {
+                                    font-family: var(--vscode-font-family);
+                                    padding: 20px;
+                                }
 
-                    python.stdin.write(JSON.stringify({
-                        code: text,
-                        function: selected,
-                        args: values.map(value => JSON.parse(value))
-                    }));
+                                .argument {
+                                    margin-bottom: 16px;
+                                }
 
-                    python.stdin.end();
+                                textarea {
+                                    width: 100%;
+                                    box-sizing: border-box;
+                                    min-height: 45px;
+                                    max-height: 200px;
+                                    resize: vertical;
+                                    padding: 10px;
+                                    background: var(--vscode-input-background);
+                                    color: var(--vscode-input-foreground);
+                                    border: 1px solid var(--vscode-input-border);
+                                    border-radius: 6px;
+                                }
 
-                    python.stdout.on('data', (data) => {
-                        const output = data.toString().trim();
+                                button {
+                                    width: 100%;
+                                    padding: 12px;
+                                    margin-top: 12px;
+                                    background: var(--vscode-button-background);
+                                    color: var(--vscode-button-foreground);
+                                    border: none;
+                                    border-radius: 6px;
+                                    cursor: pointer;
+                                }
 
-                        console.log('Python stdout:', output);
+                                button:hover {
+                                    background: var(--vscode-button-hoverBackground);
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <h2>FuncRun</h2>
+                            <h3>${selected}</h3>
 
-                        vscode.window.showInformationMessage(
-                            `Результат: ${output}`
-                        );
-                    });
+                            ${args.map(arg => `
+                                <div class="argument">
+                                    <label>${arg}</label>
+                                    <textarea placeholder="Введите значение аргумента"></textarea>
+                                </div>
+                            `).join('')}
 
-                    python.stderr.on('data', (data) => {
-                        const error = data.toString();
+                            <button id="runButton">▶ Run Function</button>
 
-                        console.log('Python stderr:', error);
-                        vscode.window.showErrorMessage(error);
-                    });
-                    python.on('error', (error) => {
-                        vscode.window.showErrorMessage(
-                            `Не удалось запустить Python: ${error.message}`
-                        );
-                    });
+                            <script>
+                                const vscode = acquireVsCodeApi();
 
-                    python.on('close', (code) => {
-                        console.log('Python завершился с кодом:', code);
+                                const runButton = document.getElementById('runButton');
+
+                                runButton.addEventListener('click', () => {
+                                    const textareas = document.querySelectorAll('textarea');
+
+                                    const values = Array.from(textareas).map(
+                                        textarea => textarea.value
+                                    );
+
+                                    vscode.postMessage({
+                                        command: 'run',
+                                        args: values
+                                    });
+                                });
+                            </script>
+                        </body>
+                        </html>
+                    `;
+
+                    panel.webview.onDidReceiveMessage(message => {
+                        if (message.command === 'run') {
+                            let values: unknown[];
+
+                            try {
+                                values = message.args.map(
+                                    (value: string) => JSON.parse(value)
+                                );
+                            } catch {
+                                vscode.window.showErrorMessage(
+                                    'Неверный формат аргументов. Вводи значения в формате JSON.'
+                                );
+                                return;
+                            }
+
+                            RunPython(context, text, selected, values);
+                        }
                     });
                 }
             });
