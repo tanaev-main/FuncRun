@@ -59,7 +59,7 @@ function GetArguments(file_text, function_name) {
     }
     return [];
 }
-function RunPython(context, text, selected, values) {
+function RunPython(context, text, selected, values, panel) {
     const analyzerPath = path.join(context.extensionPath, 'python', 'analyze.py');
     const python = (0, child_process_1.spawn)('python3', [analyzerPath]);
     python.stdin.write(JSON.stringify({
@@ -80,12 +80,12 @@ function RunPython(context, text, selected, values) {
         vscode.window.showErrorMessage(`Не удалось запустить Python: ${error.message}`);
     });
     python.on('close', code => {
-        if (code === 0) {
-            vscode.window.showInformationMessage(`Результат: ${output.trim()}`);
-        }
-        else {
-            vscode.window.showErrorMessage(`Ошибка Python: ${errorOutput.trim() || output.trim()}`);
-        }
+        panel.webview.postMessage({
+            command: 'result',
+            output: code === 0
+                ? output.trim()
+                : `Ошибка Python: ${errorOutput.trim() || output.trim()}`
+        });
     });
 }
 function activate(context) {
@@ -158,6 +158,15 @@ function activate(context) {
                                     border-radius: 6px;
                                     cursor: pointer;
                                 }
+                                #result {
+                                    margin-top: 20px;
+                                    padding: 12px;
+                                    background: var(--vscode-editor-background);
+                                    color: var(--vscode-editor-foreground);
+                                    border-radius: 6px;
+                                    white-space: pre-wrap;
+                                    overflow-wrap: anywhere;
+}
 
                                 button:hover {
                                     background: var(--vscode-button-hoverBackground);
@@ -176,7 +185,7 @@ function activate(context) {
                             `).join('')}
 
                             <button id="runButton">▶ Run Function</button>
-
+                            <div id="result"></div>
                             <script>
                                 const vscode = acquireVsCodeApi();
 
@@ -188,6 +197,13 @@ function activate(context) {
                                     const values = Array.from(textareas).map(
                                         textarea => textarea.value
                                     );
+                                    window.addEventListener('message', event => {
+                                        const message = event.data;
+
+                                        if (message.command === 'result') {
+                                            document.getElementById('result').textContent = message.output;
+                                        }
+                                    });
 
                                     vscode.postMessage({
                                         command: 'run',
@@ -208,7 +224,7 @@ function activate(context) {
                             vscode.window.showErrorMessage('Неверный формат аргументов. Вводи значения в формате JSON.');
                             return;
                         }
-                        RunPython(context, text, selected, values);
+                        RunPython(context, text, selected, values, panel);
                     }
                 });
             }

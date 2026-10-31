@@ -13,6 +13,7 @@ code_text = request["code"]
 function_name = request["function"]
 function_args = request["args"]
 
+
 def collect_dependencies(function_name, visited, all_dependencies):
     if function_name in visited:
         return
@@ -106,10 +107,21 @@ generated_code += f"""
 
 import json
 import sys
+import io
+from contextlib import redirect_stdout
 
 _args = json.loads(sys.stdin.read())
-_result = {function_name}(*_args)
-print(json.dumps(_result))
+_buffer = io.StringIO()
+
+with redirect_stdout(_buffer):
+    _result = {function_name}(*_args)
+
+_response = {{"output": _buffer.getvalue()}}
+
+if _result is not None:
+    _response["result"] = _result
+
+print(json.dumps(_response))
 """
 
 
@@ -123,9 +135,6 @@ with tempfile.NamedTemporaryFile(
     temp_path = temp_file.name
 
 
-print("Создан файл:", temp_path)
-
-
 try:
     result = subprocess.run(
         [sys.executable, temp_path],
@@ -137,7 +146,15 @@ try:
 
     if result.returncode == 0:
         function_result = json.loads(result.stdout)
-        print("Результат:", function_result)
+
+        output = function_result["output"]
+        value = function_result.get("result")
+
+        if output:
+            print(output, end="")
+
+        if value is not None:
+            print(value)
     else:
         print("Ошибка:", result.stderr)
 
