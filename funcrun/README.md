@@ -1,71 +1,197 @@
-# funcrun README
+# FuncRun
 
-This is the README for your extension "funcrun". After writing up a brief description, we recommend including the following sections.
+**FuncRun** — расширение для Visual Studio Code, которое позволяет запускать отдельные функции Python без необходимости выполнять весь Python-файл.
 
-## Features
+Расширение анализирует исходный код, определяет зависимости выбранной функции, запускает её с указанными аргументами и отображает результат в отдельной панели VS Code.
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+## Возможности
 
-For example if there is an image subfolder under your extension project workspace:
+- Поиск функций Python в открытом файле.
+- Выбор функции через меню VS Code.
+- Автоматическое создание полей ввода аргументов.
+- Поддержка чисел, строк, списков и словарей в формате JSON.
+- Анализ зависимостей с помощью Python AST.
+- Запуск выбранной функции без выполнения всего исходного файла.
+- Отображение вывода `print()` и значения `return`.
+- Скрытие возвращаемого значения `None`.
+- Отображение ошибок выполнения Python-кода.
+- Автоматическое удаление временного файла после выполнения.
 
-\!\[feature X\]\(images/feature-x.png\)
+## Требования
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+Для запуска проекта необходимы:
 
-## Requirements
+- Visual Studio Code
+- Python 3
+- Node.js
+- npm
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+## Установка
 
-## Extension Settings
+Клонируйте репозиторий проекта и перейдите в папку расширения `funcrun`.
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+Установите зависимости:
 
-For example:
+```bash
+npm install
+```
 
-This extension contributes the following settings:
+Откройте проект в Visual Studio Code:
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+```bash
+code .
+```
 
-## Known Issues
+Нажмите **F5**, чтобы запустить расширение в режиме разработки.
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+## Использование
 
-## Release Notes
+1. Откройте Python-файл в VS Code.
+2. Откройте палитру команд (`Ctrl+Shift+P` или `Cmd+Shift+P`).
+3. Найдите и запустите команду FuncRun.
+4. Выберите функцию, которую хотите выполнить.
+5. В открывшейся панели введите аргументы.
+6. Нажмите **Run Function**.
+7. Результат выполнения появится под кнопкой.
 
-Users appreciate release notes as you update your extension.
+## Примеры использования
 
-### 1.0.0
+### 1. Функция с return
 
-Initial release of ...
+```python
+def add(a, b):
+    return a + b
+```
 
-### 1.0.1
+Аргументы:
 
-Fixed issue #.
+**a:**
+```json
+5
+```
 
-### 1.1.0
+**b:**
+```json
+10
+```
 
-Added features X, Y, and Z.
+Результат:
 
----
+```text
+15
+```
 
-## Following extension guidelines
+### 2. Функция с print()
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+```python
+def show_numbers(numbers):
+    for number in numbers:
+        print(number)
+```
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+Аргумент:
 
-## Working with Markdown
+```json
+[10, 20, 30]
+```
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+Результат:
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+```text
+10
+20
+30
+```
 
-## For more information
+### 3. Функция с зависимостями
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+```python
+MULTIPLIER = 3
 
-**Enjoy!**
+def multiply(number):
+    return number * MULTIPLIER
+
+def calculate(value):
+    return multiply(value) + 5
+```
+
+При запуске функции `calculate` расширение определит, что она использует функцию `multiply`, которая, в свою очередь, зависит от переменной `MULTIPLIER`.
+
+Аргумент:
+
+```json
+10
+```
+
+Результат:
+
+```text
+35
+```
+
+## Как работает FuncRun
+
+Проект состоит из двух основных компонентов.
+
+### TypeScript — `src/extension.ts`
+
+Отвечает за взаимодействие с Visual Studio Code:
+
+- Получает исходный код открытого Python-файла.
+- Находит функции и предоставляет возможность выбрать нужную.
+- Создаёт Webview-панель с полями ввода аргументов.
+- Передаёт Python-анализатору исходный код, имя функции и аргументы.
+- Получает результат выполнения.
+- Отображает результат в панели расширения.
+
+### Python — `python/analyze.py`
+
+Отвечает за анализ и выполнение Python-кода:
+
+1. Получает данные от TypeScript в формате JSON.
+2. Разбирает исходный код с помощью модуля `ast`.
+3. Определяет зависимости выбранной функции.
+4. Формирует временный Python-файл с необходимыми функциями, переменными и импортами.
+5. Запускает временный файл через `subprocess`.
+6. Перехватывает вывод `print()` и возвращаемое значение функции.
+7. Передаёт результат обратно TypeScript.
+8. Удаляет временный файл после выполнения.
+
+## Структура проекта
+
+```text
+FuncRun/
+└── funcrun/
+    ├── src/
+    │   └── extension.ts
+    ├── python/
+    │   └── analyze.py
+    ├── package.json
+    ├── tsconfig.json
+    └── README.md
+```
+
+*Показаны основные файлы проекта.*
+
+## Текущие ограничения
+
+FuncRun находится в разработке, поэтому пока существуют некоторые ограничения:
+
+- Аргументы необходимо вводить в формате JSON.
+- Анализатор поддерживает не все конструкции Python.
+- Сложные зависимости могут определяться некорректно.
+- Возвращаемые значения должны поддерживать сериализацию в JSON.
+- Время выполнения функции ограничено 10 секундами.
+- Анализ зависимостей ориентирован преимущественно на функции и переменные верхнего уровня.
+
+## Используемые технологии
+
+- **TypeScript** — разработка расширения.
+- **Python** — анализ и выполнение функций.
+- **VS Code Extension API** — взаимодействие с редактором.
+- **Python AST** — анализ структуры исходного кода.
+- **Webview API** — интерфейс ввода аргументов и отображения результатов.
+- **Node.js** — запуск Python-процесса из расширения.
+
+## Статус проекта
+

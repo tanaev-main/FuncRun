@@ -15,7 +15,7 @@
     "commands": [
       {
         "command": "funcrun.helloWorld",
-        "title": "Hello World"
+        "title": "FuncRun"
       }
     ]
   },
