@@ -34,7 +34,8 @@ function RunPython(
     context: vscode.ExtensionContext,
     text: string,
     selected: string,
-    values: unknown[]
+    values: unknown[],
+    panel: vscode.WebviewPanel
 ) {
     const analyzerPath = path.join(
         context.extensionPath,
@@ -70,15 +71,12 @@ function RunPython(
     });
 
     python.on('close', code => {
-        if (code === 0) {
-            vscode.window.showInformationMessage(
-                `Результат: ${output.trim()}`
-            );
-        } else {
-            vscode.window.showErrorMessage(
-                `Ошибка Python: ${errorOutput.trim() || output.trim()}`
-            );
-        }
+        panel.webview.postMessage({
+            command: 'result',
+            output: code === 0
+                ? output.trim()
+                : `Ошибка Python: ${errorOutput.trim() || output.trim()}`
+        });
     });
 }
 
@@ -181,6 +179,15 @@ export function activate(context: vscode.ExtensionContext) {
                                     border-radius: 6px;
                                     cursor: pointer;
                                 }
+                                #result {
+                                    margin-top: 20px;
+                                    padding: 12px;
+                                    background: var(--vscode-editor-background);
+                                    color: var(--vscode-editor-foreground);
+                                    border-radius: 6px;
+                                    white-space: pre-wrap;
+                                    overflow-wrap: anywhere;
+}
 
                                 button:hover {
                                     background: var(--vscode-button-hoverBackground);
@@ -199,7 +206,7 @@ export function activate(context: vscode.ExtensionContext) {
                             `).join('')}
 
                             <button id="runButton">▶ Run Function</button>
-
+                            <div id="result"></div>
                             <script>
                                 const vscode = acquireVsCodeApi();
 
@@ -211,6 +218,13 @@ export function activate(context: vscode.ExtensionContext) {
                                     const values = Array.from(textareas).map(
                                         textarea => textarea.value
                                     );
+                                    window.addEventListener('message', event => {
+                                        const message = event.data;
+
+                                        if (message.command === 'result') {
+                                            document.getElementById('result').textContent = message.output;
+                                        }
+                                    });
 
                                     vscode.postMessage({
                                         command: 'run',
@@ -237,7 +251,7 @@ export function activate(context: vscode.ExtensionContext) {
                                 return;
                             }
 
-                            RunPython(context, text, selected, values);
+                            RunPython(context, text, selected, values, panel);
                         }
                     });
                 }
